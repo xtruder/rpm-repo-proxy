@@ -1,0 +1,25 @@
+{
+  "name": "rpmrepo",
+  "version": "1.0.0",
+  "description": "Cloudflare Worker RPM repository for Cursor IDE",
+  "main": "src/index.ts",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "tail": "wrangler tail",
+    "test": "node --test test/*.test.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "module",
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20251001.0",
+    "@types/node": "^24.6.1",
+    "typescript": "^5.9.3",
+    "wrangler": "^4.40.3"
+  },
+  "dependencies": {
+    "@dx3mod/rpm-parser": "^0.3.2"
+  }
+}

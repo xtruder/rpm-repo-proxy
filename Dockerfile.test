@@ -1,0 +1,24 @@
+FROM fedora:latest
+
+# Add the Cursor RPM repository
+RUN curl -o /etc/yum.repos.d/cursor.repo https://rpm-repo-proxy.x-truder.net/cursor/cursor.repo
+
+# Show the repo file
+RUN echo "=== Repository configuration ===" && cat /etc/yum.repos.d/cursor.repo
+
+# Update metadata
+RUN echo "=== Updating repository metadata ===" && dnf makecache --refresh -y
+
+# List available cursor packages
+RUN echo "=== Available Cursor packages ===" && dnf list available cursor
+
+# Show package info
+RUN echo "=== Package info ===" && dnf info cursor
+
+# Install cursor
+RUN echo "=== Installing Cursor ===" && dnf install -y cursor
+
+# Verify installation
+RUN echo "=== Verifying installation ===" && rpm -qi cursor
+
+CMD ["/bin/bash"]

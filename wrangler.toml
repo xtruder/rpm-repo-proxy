@@ -1,0 +1,32 @@
+name = "rpm-repo-proxy"
+main = "src/index.ts"
+compatibility_date = "2024-09-23"
+compatibility_flags = ["nodejs_compat_v2"]
+
+[limits]
+cpu_ms = 300000  # 5 minutes CPU time for paid plan
+
+[vars]
+REPO_BASE_URL = "https://rpm-repo-proxy.x-truder.net"
+
+[[kv_namespaces]]
+binding = "VERSION_INDEX"
+id = "933bfd1e1d1148a4ba9e4362f0c6801e"
+
+[triggers]
+# Separate cron for each provider
+crons = [
+  "0 * * * *"  # cursor - every hour at minute 0
+]
+
+[env.production]
+routes = [
+  { pattern = "rpm-repo-proxy.x-truder.net/*", zone_name = "x-truder.net" }
+]
+
+[env.production.vars]
+REPO_BASE_URL = "https://rpm-repo-proxy.x-truder.net"
+
+[[env.production.kv_namespaces]]
+binding = "VERSION_INDEX"
+id = "933bfd1e1d1148a4ba9e4362f0c6801e"
