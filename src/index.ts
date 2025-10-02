@@ -295,7 +295,7 @@ export default {
   async scheduled(event: ScheduledEvent, env: Env, ctx: ExecutionContext): Promise<void> {
     // Match cron pattern to provider
     switch (event.cron) {
-      case "0 * * * *":  // cursor - every hour at minute 0
+      case "0 */6 * * *":  // cursor - every 6 hours at minute 0
         await handleScheduledForProvider(env, providers.cursor);
         break;
       default:
