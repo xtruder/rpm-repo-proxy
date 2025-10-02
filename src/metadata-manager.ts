@@ -55,19 +55,15 @@ export class MetadataManager {
   }
 
   /**
-   * Get all metadata for multiple versions
+   * Get all metadata for multiple versions (parallel fetch for performance)
    */
   async getAllMetadata(versions: Array<{version: string, release: string}>): Promise<any[]> {
-    const metadataList = [];
+    // Fetch all metadata in parallel using Promise.all
+    const metadataPromises = versions.map(v => this.getMetadata(v.version, v.release));
+    const results = await Promise.all(metadataPromises);
 
-    for (const v of versions) {
-      const metadata = await this.getMetadata(v.version, v.release);
-      if (metadata) {
-        metadataList.push(metadata);
-      }
-    }
-
-    return metadataList;
+    // Filter out null values (versions without metadata)
+    return results.filter(metadata => metadata !== null);
   }
 
   /**
