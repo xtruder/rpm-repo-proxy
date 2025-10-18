@@ -1,4 +1,4 @@
-name = "rpm-repo-proxy"
+name = "rpm-repo-proxy-production"
 main = "src/index.ts"
 compatibility_date = "2024-09-23"
 
