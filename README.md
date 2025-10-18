@@ -1,5 +1,9 @@
 # RPM Repository Proxy
 
+[![CI](https://github.com/xtruder/rpm-repo-proxy/actions/workflows/ci.yml/badge.svg)](https://github.com/xtruder/rpm-repo-proxy/actions/workflows/ci.yml)
+[![E2E Health Check](https://github.com/xtruder/rpm-repo-proxy/actions/workflows/e2e-test.yml/badge.svg)](https://github.com/xtruder/rpm-repo-proxy/actions/workflows/e2e-test.yml)
+[![Live Service](https://img.shields.io/badge/live-rpm--repo--proxy.x--truder.net-blue)](https://rpm-repo-proxy.x-truder.net)
+
 A Cloudflare Workers-based multi-provider RPM repository proxy that automatically discovers new RPM packages
 from multiple providers and serves YUM/DNF-compatible repository metadata.
 
