@@ -3,15 +3,17 @@
   "version": "1.0.0",
   "description": "Cloudflare Worker RPM repository for Cursor IDE",
   "main": "src/index.ts",
+  "private": true,
   "scripts": {
     "dev": "wrangler dev",
     "deploy": "wrangler deploy",
     "tail": "wrangler tail",
-    "test": "node --test test/*.test.js"
+    "test": "node --test test/*.test.js",
+    "e2e": "docker build -f Dockerfile.test ."
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
+  "keywords": ["cloudflare", "worker", "rpm", "repository"],
+  "author": "Jaka Hudoklin <jaka@x-truder.net>",
+  "license": "Apache-2.0",
   "type": "module",
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20251001.0",

@@ -1,0 +1,46 @@
+name: End-to-End Health Check
+
+on:
+  schedule:
+    # Run daily at 00:00 UTC
+    - cron: '0 0 * * *'
+  workflow_dispatch:
+    # Allow manual triggering
+  push:
+    branches: [ main ]
+    paths:
+      - 'Dockerfile.test'
+      - '.github/workflows/e2e-test.yml'
+
+jobs:
+  health-check:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+
+    - name: Run end-to-end test
+      run: |
+        echo "Building test container - this verifies the RPM proxy is working..."
+        docker build -f Dockerfile.test -t cursor-rpm-test .
+
+    - name: Health check passed
+      run: |
+        echo "✅ RPM repository proxy is healthy!"
+        echo "Successfully:"
+        echo "  - Fetched repository configuration"
+        echo "  - Updated repository metadata"
+        echo "  - Listed available packages"
+        echo "  - Installed Cursor package"
+        echo "  - Verified installation"
+
+    - name: Notify on failure
+      if: failure()
+      run: |
+        echo "❌ RPM repository proxy health check FAILED!"
+        echo "The proxy may be down or experiencing issues."
+        echo "Check the logs above for details."

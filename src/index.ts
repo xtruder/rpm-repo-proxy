@@ -9,7 +9,6 @@ interface Env {
 }
 
 const CACHE_TTL_RPM = 30 * 24 * 60 * 60; // 30 days
-const CACHE_TTL_METADATA = 6 * 60 * 60; // 6 hours
 const MAX_RPMS_PER_RUN = 1; // Rate limit for scheduled job
 
 /**

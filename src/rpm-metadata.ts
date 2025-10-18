@@ -98,9 +98,9 @@ export async function extractRpmMetadata(rpmUrl: string, filename: string): Prom
   console.log('[RPM] Checksum calculated:', sha256Checksum);
 
   // Extract dependency flags manually since pkg.dependencies doesn't include them
-  const requireNames = pkg.get(DependencyTag.RequireName) || [];
-  const requireVersions = pkg.get(DependencyTag.RequireVersion) || [];
-  const requireFlags = pkg.get(DependencyTag.RequireFlags) || [];
+  const requireNames = (pkg.get(DependencyTag.RequireName) || []) as string[];
+  const requireVersions = (pkg.get(DependencyTag.RequireVersion) || []) as string[];
+  const requireFlags = (pkg.get(DependencyTag.RequireFlags) || []) as number[];
 
   // Map flag numbers to flag names (EQ, LT, LE, GT, GE)
   // RPM flags use the lower bits for comparison operators
