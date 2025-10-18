@@ -20,7 +20,7 @@ Used for RPM packages that are not available via RPM repositories.
 
 ### Components
 
-- **Provider Layer** (`src/providers/`): Abstraction for different IDE providers
+- **Provider Layer** (`src/providers/`): Abstraction for different RPM sources
 - **Version Manager** (`src/version-discovery.ts`): Tracks versions in Cloudflare KV
 - **Metadata Manager** (`src/metadata-manager.ts`): Orchestrates RPM metadata extraction
 - **RPM Metadata Extractor** (`src/rpm-metadata.ts`): Extracts package metadata from RPM files
