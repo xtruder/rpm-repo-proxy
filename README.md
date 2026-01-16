@@ -9,10 +9,26 @@ from multiple providers and serves YUM/DNF-compatible repository metadata.
 
 Used for RPM packages that are not available via RPM repositories.
 
+## Active Providers
+
+| Provider | Package | Source | Architectures |
+|----------|---------|--------|---------------|
+| [open-code](https://rpm-repo-proxy.x-truder.net/open-code/) | `open-code` | [GitHub Releases](https://github.com/anomalyco/opencode/releases) | x86_64, aarch64 |
+
+### Quick Install
+
+```bash
+# OpenCode
+sudo curl -o /etc/yum.repos.d/open-code.repo https://rpm-repo-proxy.x-truder.net/open-code/open-code.repo
+sudo dnf install open-code
+```
+
 ## Features
 
-- **Multi RPM Sources**: Extensible providers for scraping RPM packages (currently Cursor IDE, easily add more)
-- **Automated Version Discovery**: Hourly cron job polls provider APIs for new RPM versions
+- **Multi RPM Sources**: Extensible provider system for different RPM package sources (GitHub Releases, custom APIs, etc.)
+- **Automated Version Discovery**: Cron job polls provider APIs every 3 hours for new RPM versions
+- **GitHub Checksum Optimization**: For GitHub releases, uses API-provided SHA256 checksums to skip full file downloads during metadata extraction (~2s vs ~40s per package)
+- **Multi-Architecture Support**: Handles multiple architectures (x86_64, aarch64) per package version
 - **CDN Caching**: 30-day cache for RPM downloads, 5-minute cache for metadata
 - **On-the-fly Metadata Generation**: Generates YUM/DNF repository metadata dynamically
 
@@ -28,9 +44,9 @@ Used for RPM packages that are not available via RPM repositories.
 
 ### Data Flow
 
-1. **Scheduled Job** (every 6 hours):
+1. **Scheduled Job** (every 3 hours):
    - Check each provider for new versions
-   - Extract and store RPM metadata in Cloudflare KV
+   - Extract and store RPM metadata in Cloudflare KV (rate-limited to 1 RPM per run)
 
 2. **HTTP Requests**:
    - GET `/`: Root path, returns list of available providers
@@ -100,10 +116,14 @@ npx wrangler deploy --env=production --dry-run
 Add the repository configuration on your Fedora/RHEL-based system:
 
 ```bash
-# Cursor IDE repository
-sudo curl -o /etc/yum.repos.d/<provider>.repo https://rpm-repo-proxy.x-truder.net/<provider>/<provider>.repo
+# OpenCode repository
+sudo curl -o /etc/yum.repos.d/open-code.repo https://rpm-repo-proxy.x-truder.net/open-code/open-code.repo
+sudo dnf install open-code
+```
 
-# Install
+For other providers, replace the provider name accordingly:
+```bash
+sudo curl -o /etc/yum.repos.d/<provider>.repo https://rpm-repo-proxy.x-truder.net/<provider>/<provider>.repo
 sudo dnf install <package>
 ```
 
@@ -120,66 +140,93 @@ curl -X POST https://rpm-repo-proxy.x-truder.net/<provider>/__trigger-scheduled
 # List all keys (use --remote flag)
 npx wrangler kv key list --namespace-id=933bfd1e1d1148a4ba9e4362f0c6801e --env=production --remote
 
-# Get specific metadata
-npx wrangler kv key get "cursor:metadata:1.7.28-adb0f9e3e4" --namespace-id=933bfd1e1d1148a4ba9e4362f0c6801e --env=production --remote
+# Get specific metadata (keys are namespaced by provider)
+npx wrangler kv key get "open-code:version-index" --namespace-id=933bfd1e1d1148a4ba9e4362f0c6801e --env=production --remote
+npx wrangler kv key get "open-code:metadata:1.1.23-1-x86_64" --namespace-id=933bfd1e1d1148a4ba9e4362f0c6801e --env=production --remote
 
 # Delete key
-npx wrangler kv key delete "cursor:metadata:1.7.28-adb0f9e3e4" --namespace-id=933bfd1e1d1148a4ba9e4362f0c6801e --env=production --remote
+npx wrangler kv key delete "open-code:metadata:1.1.23-1-x86_64" --namespace-id=933bfd1e1d1148a4ba9e4362f0c6801e --env=production --remote
 ```
 
 ## Adding New Providers
 
-1. Create a new provider class in `src/providers/` implementing the `Provider` interface
-2. Register the provider in `src/providers/index.ts`
+### GitHub Releases Provider (Recommended)
 
-Example:
+For packages distributed via GitHub Releases, use the built-in `GitHubProvider`:
+
 ```typescript
-// src/providers/windsurf.ts
-export class WindsurfProvider implements Provider {
-  getName(): string { return 'windsurf'; }
+// src/providers/index.ts
+import { GitHubProvider } from './github';
+
+export const providers: Record<string, Provider> = {
+  'my-app': new GitHubProvider({
+    name: 'my-app',
+    displayName: 'My App Repository',
+    description: 'My App RPM packages',
+    owner: 'github-org',
+    repo: 'my-app',
+    releasesCount: 2,  // Number of releases to track
+    includePrereleases: false,
+    packageName: 'my-app',  // RPM package name (for dnf install)
+    architectures: {
+      'x86_64': {
+        rpmPattern: /my-app-.*-x86_64\.rpm$/,
+      },
+      'aarch64': {
+        rpmPattern: /my-app-.*-aarch64\.rpm$/,
+      }
+    }
+  }),
+};
+```
+
+### Custom Provider
+
+For other sources, create a provider class implementing the `Provider` interface:
+
+```typescript
+// src/providers/custom.ts
+export class CustomProvider implements Provider {
+  getName(): string { return 'custom'; }
 
   getRepoConfig(): RepoConfig {
     return {
-      id: 'windsurf',
-      name: 'Windsurf IDE',
-      baseurl: '$basearch'
+      name: 'custom',
+      displayName: 'Custom Repository',
+      description: 'Custom RPM packages'
     };
   }
 
-  async fetchLatestVersion(): Promise<VersionInfo | null> {
-    // Implementation
+  async fetchLatestVersion(): Promise<VersionInfo> {
+    // Implementation - fetch from your source
   }
 }
 ```
 
-4. Add unique cron job to `wrangler.toml` for the new provider:
+### Register and Schedule
 
-Every provider must have a unique time pattern for a cronjob, the schedule pattern can be distinguished in code.
+1. Register the provider in `src/providers/index.ts`
+2. Add a unique cron pattern to `wrangler.toml`:
 
 ```toml
-triggers = [
-  { name = "scheduled", schedule = "0 */6 * * *" }, # cursor
-  { name = "scheduled", schedule = "1 */6 * * *" }, # windsurf
+[triggers]
+crons = [
+  "0 */3 * * *",   # existing provider
+  "30 */3 * * *"   # new provider - different minute
 ]
 ```
 
+3. Add the cron handler in `src/index.ts`:
+
 ```typescript
-// src/index.ts
-export default {
-  ...,
-  async scheduled(event: ScheduledEvent, env: Env, ctx: ExecutionContext): Promise<void> {
-    // Match cron pattern to provider
-    switch (event.cron) {
-      case "0 */6 * * *":  // cursor - every 6 hours at minute 0
-        await handleScheduledForProvider(env, providers.cursor);
-        break;
-      // Add new provider here
-      case "1 */6 * * *":  // windsurf - every 6 hours at minute 1
-        await handleScheduledForProvider(env, providers.windsurf);
-        break;
-      default:
-        console.error(`Unknown cron pattern: ${event.cron}`);
-    }
+async scheduled(event: ScheduledEvent, env: Env, ctx: ExecutionContext): Promise<void> {
+  switch (event.cron) {
+    case "0 */3 * * *":
+      await handleScheduledForProvider(env, providers['existing']);
+      break;
+    case "30 */3 * * *":
+      await handleScheduledForProvider(env, providers['new-provider']);
+      break;
   }
 }
 ```

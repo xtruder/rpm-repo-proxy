@@ -10,10 +10,9 @@ binding = "VERSION_INDEX"
 id = "933bfd1e1d1148a4ba9e4362f0c6801e"
 
 [triggers]
-# Separate cron for each provider - runs every 3 hours (>1hr interval = 15min CPU limit)
+# Cron for each provider - runs every 3 hours (>1hr interval = 15min CPU limit)
 crons = [
-  "0 */3 * * *",   # cursor - every 3 hours at minute 0
-  "30 */3 * * *"   # opencode - every 3 hours at minute 30
+  "0 */3 * * *"   # open-code - every 3 hours
 ]
 
 [observability]

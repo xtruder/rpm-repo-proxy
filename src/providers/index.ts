@@ -3,12 +3,11 @@
  */
 
 import type { Provider } from './base';
-import { CursorProvider } from './cursor';
 import { GitHubProvider } from './github';
 
 // Registry of all available providers
+// NOTE: Cursor provider disabled - they now provide their own official repo
 export const providers: Record<string, Provider> = {
-  cursor: new CursorProvider(),
   'open-code': new GitHubProvider({
     name: 'open-code',
     displayName: 'OpenCode Repository',
@@ -33,6 +32,5 @@ export const providers: Record<string, Provider> = {
 
 // Export types and classes
 export type { Provider, VersionInfo, RepoConfig } from './base';
-export { CursorProvider } from './cursor';
 export { GitHubProvider } from './github';
 export type { GitHubProviderConfig, ArchitectureConfig } from './github';

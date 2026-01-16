@@ -320,10 +320,7 @@ export default {
   async scheduled(event: ScheduledEvent, env: Env, ctx: ExecutionContext): Promise<void> {
     // Match cron pattern to provider
     switch (event.cron) {
-      case "0 */3 * * *":  // cursor - every 3 hours at minute 0
-        await handleScheduledForProvider(env, providers.cursor);
-        break;
-      case "30 */3 * * *":  // open-code - every 3 hours at minute 30
+      case "0 */3 * * *":  // open-code - every 3 hours
         await handleScheduledForProvider(env, providers['open-code']);
         break;
       default:
