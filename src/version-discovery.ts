@@ -10,6 +10,7 @@ interface VersionInfo {
   url: string;
   filename: string;
   added: string;
+  arch?: string;  // Architecture (x86_64, aarch64, etc.)
 }
 
 interface VersionIndex {
@@ -51,38 +52,72 @@ export class VersionManager {
   }
 
   /**
-   * Check for new version and update index if found
-   * @returns True if new version was found
+   * Fetch multiple versions from provider API (if supported)
+   * Falls back to fetchLatestVersion() for providers that don't support batch fetching
+   * @param count Optional count - if not provided, uses provider's default
+   */
+  async fetchVersions(count?: number): Promise<Omit<VersionInfo, 'added'>[]> {
+    if (this.provider.fetchVersions) {
+      return await this.provider.fetchVersions(count);
+    }
+    // Fallback for providers without fetchVersions support
+    return [await this.provider.fetchLatestVersion()];
+  }
+
+  /**
+   * Generate a unique key for a version (includes arch if present)
+   */
+  private getVersionKey(v: { version: string; release: string; arch?: string }): string {
+    return v.arch 
+      ? `${v.version}-${v.release}-${v.arch}`
+      : `${v.version}-${v.release}`;
+  }
+
+  /**
+   * Check for new versions and update index if found
+   * Supports providers with multiple versions/architectures via fetchVersions()
+   * @returns True if any new version was found
    */
   async checkAndUpdate(): Promise<boolean> {
-    const latest = await this.fetchLatestVersion();
+    // Use fetchVersions if available, otherwise fall back to single version
+    // Don't pass count - let provider use its configured default
+    const latestVersions = await this.fetchVersions();
     const index = await this.getIndex();
 
-    const versionKey = `${latest.version}-${latest.release}`;
+    let addedCount = 0;
 
-    // Check if version already exists
-    const exists = index.versions.some(
-      v => `${v.version}-${v.release}` === versionKey
-    );
+    for (const latest of latestVersions) {
+      const versionKey = this.getVersionKey(latest);
 
-    if (exists) {
-      console.log(`Version ${versionKey} already exists in `, index.versions);
-      return false;
+      // Check if version already exists
+      const exists = index.versions.some(
+        v => this.getVersionKey(v) === versionKey
+      );
+
+      if (exists) {
+        continue;
+      }
+
+      // Add new version
+      const newVersion: VersionInfo = {
+        ...latest,
+        added: new Date().toISOString()
+      };
+
+      index.versions.unshift(newVersion); // Add to front (newest first)
+      addedCount++;
+      console.log(`Added new version: ${versionKey}`);
     }
 
-    // Add new version
-    const newVersion: VersionInfo = {
-      ...latest,
-      added: new Date().toISOString()
-    };
+    if (addedCount > 0) {
+      index.updated = new Date().toISOString();
+      await this.saveIndex(index);
+      console.log(`Added ${addedCount} new version(s)`);
+    } else {
+      console.log(`No new versions found, index has ${index.versions.length} versions`);
+    }
 
-    index.versions.unshift(newVersion); // Add to front (newest first)
-    index.updated = new Date().toISOString();
-
-    await this.saveIndex(index);
-
-    console.log(`Added new version: ${versionKey}`);
-    return true;
+    return addedCount > 0;
   }
 
   /**

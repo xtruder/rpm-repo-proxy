@@ -24,43 +24,35 @@ async function handleScheduledForProvider(env: Env, provider: any): Promise<void
     const versionManager = new VersionManager(env.VERSION_INDEX, provider);
     const metadataManager = new MetadataManager(env.VERSION_INDEX, provider);
 
-    const updated = await versionManager.checkAndUpdate();
-    if (updated) {
-      console.log(`New version discovered for ${providerName}`);
+    // Always check for new versions first
+    await versionManager.checkAndUpdate();
 
-      // Extract and store metadata for the new version
-      const latest = await versionManager.getLatest();
-      if (latest) {
-        console.log(`Extracting metadata for ${providerName}:${latest.version}-${latest.release}...`);
+    // Get all versions (already sorted newest first)
+    const versions = await versionManager.getAllVersions();
+    
+    // Extract metadata for versions that don't have it yet (newest first)
+    for (const version of versions) {
+      if (processedCount >= MAX_RPMS_PER_RUN) break;
+
+      const hasMetadata = await metadataManager.hasMetadata(version.version, version.release, version.arch);
+      if (!hasMetadata) {
+        const archSuffix = version.arch ? ` (${version.arch})` : '';
+        console.log(`Missing metadata for ${providerName}:${version.version}-${version.release}${archSuffix}, extracting...`);
         await metadataManager.extractAndStore(
-          latest.version,
-          latest.release,
-          latest.url,
-          latest.filename
+          version.version,
+          version.release,
+          version.url,
+          version.filename,
+          version.arch
         );
-        console.log('Metadata extraction completed');
         processedCount++;
       }
+    }
+
+    if (processedCount === 0) {
+      console.log(`All metadata up to date for ${providerName}`);
     } else {
-      console.log(`No new version for ${providerName}`);
-
-      // Ensure metadata exists for all versions (backfill)
-      const versions = await versionManager.getAllVersions();
-      for (const version of versions) {
-        if (processedCount >= MAX_RPMS_PER_RUN) break;
-
-        const hasMetadata = await metadataManager.hasMetadata(version.version, version.release);
-        if (!hasMetadata) {
-          console.log(`Missing metadata for ${providerName}:${version.version}-${version.release}, extracting...`);
-          await metadataManager.extractAndStore(
-            version.version,
-            version.release,
-            version.url,
-            version.filename
-          );
-          processedCount++;
-        }
-      }
+      console.log(`Extracted metadata for ${processedCount} package(s)`);
     }
 
     // Update last check timestamp for this provider
@@ -144,11 +136,12 @@ async function handleMetadata(request: Request, env: Env, provider: any): Promis
     return new Response('No versions available', { status: 503 });
   }
 
-  // Get pre-extracted metadata from KV
+  // Get pre-extracted metadata from KV (include arch for multi-arch providers)
   const metadataList = await metadataManager.getAllMetadata(
-    versions.map(v => ({ version: v.version, release: v.release }))
+    versions.map(v => ({ version: v.version, release: v.release, arch: v.arch }))
   );
 
+  // Allow partial results - serve repodata even if not all metadata is extracted yet
   if (metadataList.length === 0) {
     return new Response('Metadata not yet extracted. Please try again in a few minutes.', { status: 503 });
   }
@@ -200,9 +193,10 @@ async function handleRequest(request: Request, env: Env, ctx: ExecutionContext):
     let repoList = '';
     for (const [name, provider] of Object.entries(providers)) {
       const config = provider.getRepoConfig();
+      const pkgName = config.packageName || name;
       repoList += `\n${config.displayName}:
   sudo curl -o /etc/yum.repos.d/${name}.repo ${env.REPO_BASE_URL}/${name}/${name}.repo
-  sudo dnf install ${name}
+  sudo dnf install ${pkgName}
 `;
     }
 
@@ -240,14 +234,18 @@ Available repositories:${repoList}
 
       let versionList = 'No versions available yet';
       if (versions.length > 0) {
-        versionList = versions.map(v => `  - ${v.version}-${v.release}`).join('\n');
+        versionList = versions.map(v => {
+          const arch = v.arch ? ` (${v.arch})` : '';
+          return `  - ${v.version}-${v.release}${arch}`;
+        }).join('\n');
       }
 
+      const pkgName = config.packageName || providerName;
       return new Response(`${config.displayName}
 
 Add to your system:
   sudo curl -o /etc/yum.repos.d/${providerName}.repo ${env.REPO_BASE_URL}/${providerName}/${providerName}.repo
-  sudo dnf install ${providerName}
+  sudo dnf install ${pkgName}
 
 Available versions:
 ${versionList}
@@ -296,6 +294,9 @@ export default {
     switch (event.cron) {
       case "0 */6 * * *":  // cursor - every 6 hours at minute 0
         await handleScheduledForProvider(env, providers.cursor);
+        break;
+      case "30 */6 * * *":  // opencode - every 6 hours at minute 30
+        await handleScheduledForProvider(env, providers.opencode);
         break;
       default:
         console.error(`Unknown cron pattern: ${event.cron}`);

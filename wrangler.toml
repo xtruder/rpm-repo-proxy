@@ -12,7 +12,8 @@ id = "933bfd1e1d1148a4ba9e4362f0c6801e"
 [triggers]
 # Separate cron for each provider
 crons = [
-  "0 */6 * * *"  # cursor - every 6 hours at minute 0
+  "0 */6 * * *",  # cursor - every 6 hours at minute 0
+  "30 */6 * * *"  # opencode - every 6 hours at minute 30
 ]
 
 [observability]

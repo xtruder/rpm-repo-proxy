@@ -131,28 +131,37 @@ export async function extractRpmMetadata(rpmUrl: string, filename: string): Prom
     return dep;
   });
 
+  // Helper to safely get optional RPM fields that may not exist
+  const safeGet = <T>(fn: () => T, defaultValue: T): T => {
+    try {
+      return fn();
+    } catch {
+      return defaultValue;
+    }
+  };
+
   // Extract metadata from parsed package
   const metadata: RpmMetadata = {
-    // Basic info
+    // Basic info (required)
     name: pkg.name,
     version: pkg.version,
     release: pkg.release,
     arch: pkg.arch,
 
-    // Package info
-    summary: pkg.summery, // Note: typo in the library
-    description: pkg.description,
-    vendor: pkg.vendor,
-    license: pkg.license,
-    packager: pkg.packager,
-    os: pkg.os,
-    platform: pkg.platform,
+    // Package info (some may be optional depending on RPM)
+    summary: safeGet(() => pkg.summery, ''), // Note: typo in the library
+    description: safeGet(() => pkg.description, ''),
+    vendor: safeGet(() => pkg.vendor, ''),
+    license: safeGet(() => pkg.license, ''),
+    packager: safeGet(() => pkg.packager, ''),
+    os: safeGet(() => pkg.os, ''),
+    platform: safeGet(() => pkg.platform, ''),
 
     // Size
     filename: filename,
     size: {
       package: packageSize,
-      installed: pkg.size
+      installed: safeGet(() => pkg.size, 0)
     },
 
     // Checksum calculated from actual file content
@@ -164,13 +173,13 @@ export async function extractRpmMetadata(rpmUrl: string, filename: string): Prom
     url: rpmUrl, // Include URL for reference
 
     // Build info
-    buildTime: pkg.buildTime,
+    buildTime: safeGet(() => pkg.buildTime, new Date(0)),
 
     // Dependencies with flags
     dependencies: dependencies,
 
     // Digest info from RPM headers
-    digest: pkg.digest
+    digest: safeGet(() => pkg.digest, undefined)
   };
 
   console.log('[RPM] Metadata extraction complete!');
