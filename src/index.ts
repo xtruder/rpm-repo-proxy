@@ -230,22 +230,42 @@ Available repositories:${repoList}
     // Provider index
     if (subPath === '/' || subPath === '') {
       const versionManager = new VersionManager(env.VERSION_INDEX, provider);
+      const metadataManager = new MetadataManager(env.VERSION_INDEX, provider);
       const versions = await versionManager.getAllVersions();
 
       let versionList = 'No versions available yet';
+      let extractedCount = 0;
+      
       if (versions.length > 0) {
-        versionList = versions.map(v => {
-          const arch = v.arch ? ` (${v.arch})` : '';
-          return `  - ${v.version}-${v.release}${arch}`;
-        }).join('\n');
+        // Check extraction status for each version
+        const versionStatuses = await Promise.all(
+          versions.map(async v => {
+            const hasMetadata = await metadataManager.hasMetadata(v.version, v.release, v.arch);
+            if (hasMetadata) extractedCount++;
+            const arch = v.arch ? ` (${v.arch})` : '';
+            const status = hasMetadata ? ' [ready]' : ' [pending]';
+            return `  - ${v.version}-${v.release}${arch}${status}`;
+          })
+        );
+        versionList = versionStatuses.join('\n');
       }
 
       const pkgName = config.packageName || providerName;
+      const repoStatus = versions.length === 0 
+        ? 'Waiting for version discovery...'
+        : extractedCount === 0 
+          ? 'Metadata extraction pending - repo not yet available'
+          : extractedCount < versions.length
+            ? `Metadata extraction in progress (${extractedCount}/${versions.length} packages ready)`
+            : 'Repository ready';
+
       return new Response(`${config.displayName}
 
 Add to your system:
   sudo curl -o /etc/yum.repos.d/${providerName}.repo ${env.REPO_BASE_URL}/${providerName}/${providerName}.repo
   sudo dnf install ${pkgName}
+
+Status: ${repoStatus}
 
 Available versions:
 ${versionList}
