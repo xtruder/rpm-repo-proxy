@@ -86,7 +86,8 @@ export class VersionManager {
     const latestVersions = await this.fetchVersions();
     const index = await this.getIndex();
 
-    let addedCount = 0;
+    // Collect new versions first (preserving order from provider)
+    const newVersions: VersionInfo[] = [];
 
     for (const latest of latestVersions) {
       const versionKey = this.getVersionKey(latest);
@@ -106,20 +107,21 @@ export class VersionManager {
         added: new Date().toISOString()
       };
 
-      index.versions.unshift(newVersion); // Add to front (newest first)
-      addedCount++;
+      newVersions.push(newVersion);
       console.log(`Added new version: ${versionKey}`);
     }
 
-    if (addedCount > 0) {
+    if (newVersions.length > 0) {
+      // Prepend new versions to front (they're already in newest-first order from provider)
+      index.versions = [...newVersions, ...index.versions];
       index.updated = new Date().toISOString();
       await this.saveIndex(index);
-      console.log(`Added ${addedCount} new version(s)`);
+      console.log(`Added ${newVersions.length} new version(s)`);
     } else {
       console.log(`No new versions found, index has ${index.versions.length} versions`);
     }
 
-    return addedCount > 0;
+    return newVersions.length > 0;
   }
 
   /**

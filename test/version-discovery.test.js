@@ -164,6 +164,78 @@ describe('VersionManager', () => {
     });
   });
 
+  describe('checkAndUpdate with multiple versions', () => {
+    it('should preserve order when adding multiple new versions', async () => {
+      // Create a mock provider that returns multiple versions in order
+      const mockMultiVersionProvider = {
+        getName: () => 'test-multi',
+        fetchVersions: async () => [
+          // Provider returns newest first
+          { version: '2.0.0', release: '1', arch: 'x86_64', url: 'https://example.com/2.0.0-x86_64.rpm', filename: 'pkg-2.0.0-1.x86_64.rpm' },
+          { version: '2.0.0', release: '1', arch: 'aarch64', url: 'https://example.com/2.0.0-aarch64.rpm', filename: 'pkg-2.0.0-1.aarch64.rpm' },
+          { version: '1.0.0', release: '1', arch: 'x86_64', url: 'https://example.com/1.0.0-x86_64.rpm', filename: 'pkg-1.0.0-1.x86_64.rpm' },
+          { version: '1.0.0', release: '1', arch: 'aarch64', url: 'https://example.com/1.0.0-aarch64.rpm', filename: 'pkg-1.0.0-1.aarch64.rpm' },
+        ],
+        fetchLatestVersion: async function() { return (await this.fetchVersions())[0]; }
+      };
+
+      const multiKV = new MockKV();
+      const multiVersionManager = new VersionManager(multiKV, mockMultiVersionProvider);
+
+      // Add all versions
+      await multiVersionManager.checkAndUpdate();
+      const index = await multiVersionManager.getIndex();
+
+      // Should have all 4 versions
+      assert.strictEqual(index.versions.length, 4);
+
+      // Verify order is preserved (newest first, same order as provider returned)
+      assert.strictEqual(index.versions[0].version, '2.0.0');
+      assert.strictEqual(index.versions[0].arch, 'x86_64');
+      assert.strictEqual(index.versions[1].version, '2.0.0');
+      assert.strictEqual(index.versions[1].arch, 'aarch64');
+      assert.strictEqual(index.versions[2].version, '1.0.0');
+      assert.strictEqual(index.versions[2].arch, 'x86_64');
+      assert.strictEqual(index.versions[3].version, '1.0.0');
+      assert.strictEqual(index.versions[3].arch, 'aarch64');
+    });
+
+    it('should prepend new versions while keeping existing ones', async () => {
+      // Create a mock provider
+      const mockProvider = {
+        getName: () => 'test-prepend',
+        currentVersions: [],
+        fetchVersions: async function() { return this.currentVersions; },
+        fetchLatestVersion: async function() { return this.currentVersions[0]; }
+      };
+
+      const testKV = new MockKV();
+      const testVersionManager = new VersionManager(testKV, mockProvider);
+
+      // First run: add v1.0.0
+      mockProvider.currentVersions = [
+        { version: '1.0.0', release: '1', url: 'https://example.com/1.0.0.rpm', filename: 'pkg-1.0.0-1.rpm' },
+      ];
+      await testVersionManager.checkAndUpdate();
+
+      // Second run: add v2.0.0 (provider now returns both, newest first)
+      mockProvider.currentVersions = [
+        { version: '2.0.0', release: '1', url: 'https://example.com/2.0.0.rpm', filename: 'pkg-2.0.0-1.rpm' },
+        { version: '1.0.0', release: '1', url: 'https://example.com/1.0.0.rpm', filename: 'pkg-1.0.0-1.rpm' },
+      ];
+      await testVersionManager.checkAndUpdate();
+
+      const index = await testVersionManager.getIndex();
+
+      // Should have 2 versions
+      assert.strictEqual(index.versions.length, 2);
+
+      // New version should be first, old version second
+      assert.strictEqual(index.versions[0].version, '2.0.0');
+      assert.strictEqual(index.versions[1].version, '1.0.0');
+    });
+  });
+
   describe('getLatest', () => {
     it('should return null for empty index', async () => {
       const latest = await versionManager.getLatest();
