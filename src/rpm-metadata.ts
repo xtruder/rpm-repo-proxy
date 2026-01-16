@@ -38,17 +38,33 @@ type FlagMap = {
 };
 
 /**
+ * Options for extracting RPM metadata
+ */
+export interface ExtractOptions {
+  /** Pre-computed SHA256 checksum (skips full file download if provided) */
+  checksum?: string;
+  /** Pre-computed package size in bytes */
+  size?: number;
+}
+
+/**
  * Extract metadata from RPM file
  * @param rpmUrl - RPM URL to fetch
  * @param filename - The RPM filename
+ * @param options - Optional pre-computed values (checksum, size) to skip full download
  * @returns Extracted metadata
  * @throws Error if RPM parsing fails
  */
-export async function extractRpmMetadata(rpmUrl: string, filename: string): Promise<RpmMetadata> {
+export async function extractRpmMetadata(rpmUrl: string, filename: string, options?: ExtractOptions): Promise<RpmMetadata> {
   console.log('[RPM] Starting metadata extraction...');
 
-  // Fetch twice in parallel: once for headers, once for checksum
-  console.log('[RPM] Fetching headers and hashing in parallel...');
+  const hasPrecomputedChecksum = options?.checksum && options?.size;
+  
+  if (hasPrecomputedChecksum) {
+    console.log('[RPM] Using pre-computed checksum from GitHub API (fast path)');
+  } else {
+    console.log('[RPM] Fetching headers and hashing in parallel...');
+  }
 
   // Fetch first 5MB for parsing headers
   const headerPromise = (async () => {
@@ -64,32 +80,47 @@ export async function extractRpmMetadata(rpmUrl: string, filename: string): Prom
     return await parseRpmPackage(response.body as ReadableStream<Uint8Array>);
   })();
 
-  // Fetch full file for hashing and get size
-  const hashAndSizePromise = (async () => {
-    console.log('[RPM] Fetching full file for hashing...');
-    const response = await fetch(rpmUrl);
-    if (!response.ok) {
-      throw new Error(`Failed to fetch RPM: ${response.status}`);
-    }
+  // If we have pre-computed checksum, skip the full download
+  let sha256Checksum: string;
+  let packageSize: number;
 
-    const packageSize = parseInt(response.headers.get('content-length') || '0');
-    console.log(`[RPM] Package size: ${packageSize} bytes`);
+  if (hasPrecomputedChecksum) {
+    sha256Checksum = options!.checksum!;
+    packageSize = options!.size!;
+    console.log(`[RPM] Using pre-computed checksum: ${sha256Checksum}`);
+    console.log(`[RPM] Using pre-computed size: ${packageSize} bytes`);
+  } else {
+    // Fetch full file for hashing and get size
+    const hashAndSizePromise = (async () => {
+      console.log('[RPM] Fetching full file for hashing...');
+      const response = await fetch(rpmUrl);
+      if (!response.ok) {
+        throw new Error(`Failed to fetch RPM: ${response.status}`);
+      }
 
-    const digestStream = new crypto.DigestStream('SHA-256');
-    await response.body!.pipeTo(digestStream);
+      const pkgSize = parseInt(response.headers.get('content-length') || '0');
+      console.log(`[RPM] Package size: ${pkgSize} bytes`);
 
-    const digestValue = await digestStream.digest;
-    const checksum = [...new Uint8Array(digestValue)]
-      .map(b => b.toString(16).padStart(2, '0'))
-      .join('');
+      const digestStream = new crypto.DigestStream('SHA-256');
+      await response.body!.pipeTo(digestStream);
 
-    return { checksum, packageSize };
-  })();
+      const digestValue = await digestStream.digest;
+      const checksum = [...new Uint8Array(digestValue)]
+        .map(b => b.toString(16).padStart(2, '0'))
+        .join('');
 
-  // Wait for both to complete
-  const [pkg, { checksum: sha256Checksum, packageSize }] = await Promise.all([headerPromise, hashAndSizePromise]);
+      return { checksum, pkgSize };
+    })();
 
-  console.log('[RPM] Parsing and hashing complete');
+    const result = await hashAndSizePromise;
+    sha256Checksum = result.checksum;
+    packageSize = result.pkgSize;
+  }
+
+  // Wait for header parsing to complete
+  const pkg = await headerPromise;
+
+  console.log('[RPM] Parsing complete');
   console.log('[RPM] Package:', {
     name: pkg.name,
     version: pkg.version,

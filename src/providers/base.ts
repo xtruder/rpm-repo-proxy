@@ -8,6 +8,8 @@ export interface VersionInfo {
   url: string;
   filename: string;
   arch?: string;  // Architecture (x86_64, aarch64, etc.) - optional for backward compat
+  size?: number;  // Package size in bytes - optional, from GitHub API
+  checksum?: string;  // SHA256 checksum - optional, from GitHub API (avoids full download)
 }
 
 export interface RepoConfig {

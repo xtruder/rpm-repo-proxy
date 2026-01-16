@@ -2,7 +2,7 @@
  * Manage RPM metadata storage in Cloudflare KV (provider-aware)
  */
 
-import { extractRpmMetadata } from './rpm-metadata';
+import { extractRpmMetadata, type ExtractOptions } from './rpm-metadata';
 import type { Provider } from './providers/base';
 
 export class MetadataManager {
@@ -41,13 +41,22 @@ export class MetadataManager {
 
   /**
    * Extract and store metadata for a version
+   * @param options Optional pre-computed checksum and size (from GitHub API) to skip full download
    */
-  async extractAndStore(version: string, release: string, rpmUrl: string, filename: string, arch?: string): Promise<void> {
+  async extractAndStore(
+    version: string, 
+    release: string, 
+    rpmUrl: string, 
+    filename: string, 
+    arch?: string,
+    options?: ExtractOptions
+  ): Promise<void> {
     const archSuffix = arch ? ` (${arch})` : '';
-    console.log(`Extracting metadata for ${version}-${release}${archSuffix}...`);
+    const fastPath = options?.checksum ? ' (fast path - using pre-computed checksum)' : '';
+    console.log(`Extracting metadata for ${version}-${release}${archSuffix}${fastPath}...`);
 
-    // Extract metadata (fetches file twice in parallel: headers + full file for checksum)
-    const metadata = await extractRpmMetadata(rpmUrl, filename);
+    // Extract metadata - if checksum/size provided, skips full file download
+    const metadata = await extractRpmMetadata(rpmUrl, filename, options);
 
     // Store in KV
     const key = this.getMetadataKey(version, release, arch);

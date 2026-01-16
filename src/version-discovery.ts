@@ -11,6 +11,8 @@ interface VersionInfo {
   filename: string;
   added: string;
   arch?: string;  // Architecture (x86_64, aarch64, etc.)
+  size?: number;  // Package size in bytes
+  checksum?: string;  // SHA256 checksum (from GitHub API, avoids full download)
 }
 
 interface VersionIndex {

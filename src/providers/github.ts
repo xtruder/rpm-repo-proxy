@@ -14,6 +14,7 @@ interface GitHubAsset {
   name: string;
   browser_download_url: string;
   size: number;
+  digest?: string;  // SHA256 digest in format "sha256:abc123..."
 }
 
 /**
@@ -120,13 +121,20 @@ export class GitHubProvider implements Provider {
         const rpmAsset = release.assets.find(a => archConfig.rpmPattern.test(a.name));
         
         if (rpmAsset) {
+          // Extract SHA256 from GitHub's digest field (format: "sha256:abc123...")
+          const checksum = rpmAsset.digest?.startsWith('sha256:') 
+            ? rpmAsset.digest.slice(7)  // Remove "sha256:" prefix
+            : undefined;
+
           versions.push({
             version: version,
             release: '1',  // Standard release number for GitHub releases
             arch: arch,
             url: rpmAsset.browser_download_url,
             // Generate standardized RPM filename: name-version-release.arch.rpm
-            filename: `${this.config.name}-${version}-1.${arch}.rpm`
+            filename: `${this.config.name}-${version}-1.${arch}.rpm`,
+            size: rpmAsset.size,
+            checksum: checksum
           });
         }
       }

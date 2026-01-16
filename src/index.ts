@@ -38,12 +38,20 @@ async function handleScheduledForProvider(env: Env, provider: any): Promise<void
       if (!hasMetadata) {
         const archSuffix = version.arch ? ` (${version.arch})` : '';
         console.log(`Missing metadata for ${providerName}:${version.version}-${version.release}${archSuffix}, extracting...`);
+        
+        // Pass pre-computed checksum and size if available (from GitHub API)
+        // This allows skipping the full file download for hashing
+        const extractOptions = (version.checksum && version.size) 
+          ? { checksum: version.checksum, size: version.size }
+          : undefined;
+        
         await metadataManager.extractAndStore(
           version.version,
           version.release,
           version.url,
           version.filename,
-          version.arch
+          version.arch,
+          extractOptions
         );
         processedCount++;
       }
@@ -312,11 +320,11 @@ export default {
   async scheduled(event: ScheduledEvent, env: Env, ctx: ExecutionContext): Promise<void> {
     // Match cron pattern to provider
     switch (event.cron) {
-      case "0 */6 * * *":  // cursor - every 6 hours at minute 0
+      case "0 */3 * * *":  // cursor - every 3 hours at minute 0
         await handleScheduledForProvider(env, providers.cursor);
         break;
-      case "30 */6 * * *":  // opencode - every 6 hours at minute 30
-        await handleScheduledForProvider(env, providers.opencode);
+      case "30 */3 * * *":  // open-code - every 3 hours at minute 30
+        await handleScheduledForProvider(env, providers['open-code']);
         break;
       default:
         console.error(`Unknown cron pattern: ${event.cron}`);

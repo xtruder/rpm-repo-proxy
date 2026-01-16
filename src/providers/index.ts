@@ -9,8 +9,8 @@ import { GitHubProvider } from './github';
 // Registry of all available providers
 export const providers: Record<string, Provider> = {
   cursor: new CursorProvider(),
-  opencode: new GitHubProvider({
-    name: 'opencode',
+  'open-code': new GitHubProvider({
+    name: 'open-code',
     displayName: 'OpenCode Repository',
     description: 'OpenCode RPM packages',
     owner: 'anomalyco',
